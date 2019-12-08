@@ -33,9 +33,12 @@ def run(trn_ds, tst_ds, lbr, model, qs, quota):
         trn_ds.update(ask_id, lb)
 
         model.train(trn_ds)
+        #print("score: " + str(model.score(tst_ds)))
+        # E_in =1
+        # E_in =1
         E_in = np.append(E_in, 1 - model.score(trn_ds))
         E_out = np.append(E_out, 1 - model.score(tst_ds))
-
+  
     return E_in, E_out
 
 
@@ -55,15 +58,15 @@ def split_train_test(dataset_filepath, test_size, n_labeled):
 def main():
     # Specifiy the parameters here:
     # path to your binary classification dataset
-    dataset_filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libsvm.txt')
-    test_size = 0.25   # the percentage of samples in the dataset that will be
+    dataset_filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'australian.txt')
+    test_size = 0.33   # the percentage of samples in the dataset that will be
     # randomly selected and assigned to the test set
-    n_labeled = 2     # number of samples that are initially labeled
+    n_labeled = 10     # number of samples that are initially labeled
 
     # Load dataset
     trn_ds, tst_ds, y_train, fully_labeled_trn_ds = \
         split_train_test(dataset_filepath, test_size, n_labeled)
-    #trn_ds2 = copy.deepcopy(trn_ds)
+    trn_ds2 = copy.deepcopy(trn_ds)
     lbr = IdealLabeler(fully_labeled_trn_ds)
 
     quota = len(y_train) - n_labeled    # number of samples to query
@@ -74,9 +77,9 @@ def main():
     model = LogisticRegression()
     E_in_1, E_out_1 = run(trn_ds, tst_ds, lbr, model, qs, quota)
     print("E_out_1 = "+str(E_out_1))
-    # qs2 = RandomSampling(trn_ds2)
-    # model = LogisticRegression()
-    # E_in_2, E_out_2 = run(trn_ds2, tst_ds, lbr, model, qs2, quota)
+    qs2 = RandomSampling(trn_ds2)
+    model = LogisticRegression()
+    E_in_2, E_out_2 = run(trn_ds2, tst_ds, lbr, model, qs2, quota)
 
 
     # Plot the learning curve of UncertaintySampling to RandomSampling
@@ -84,9 +87,9 @@ def main():
     # error rate.
     query_num = np.arange(1, quota + 1)
     plt.plot(query_num, E_in_1, 'b', label='qs Ein')
-    #plt.plot(query_num, E_in_2, 'r', label='random Ein')
+    plt.plot(query_num, E_in_2, 'r', label='random Ein')
     plt.plot(query_num, E_out_1, 'g', label='qs Eout')
-    #plt.plot(query_num, E_out_2, 'k', label='random Eout')
+    plt.plot(query_num, E_out_2, 'k', label='random Eout')
     plt.xlabel('Number of Queries')
     plt.ylabel('Error')
     plt.title('Experiment Result')
