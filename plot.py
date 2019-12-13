@@ -117,9 +117,9 @@ def main():
     # The x-axis is the number of queries, and the y-axis is the corresponding
     # error rate.
     query_num = np.arange(1, quota + 1)
-    plt.plot(query_num, E_in_1, 'b', label='qs Ein')
+    plt.plot(query_num, E_in_1, 'b', label='euclidean Ein')
     plt.plot(query_num, E_in_2, 'r', label='random Ein')
-    plt.plot(query_num, E_out_1, 'g', label='qs Eout')
+    plt.plot(query_num, E_out_1, 'g', label='euclidean Eout')
     plt.plot(query_num, E_out_2, 'k', label='random Eout')
     plt.xlabel('Number of Queries')
     plt.ylabel('Error')

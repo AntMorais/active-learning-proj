@@ -6,7 +6,8 @@ smallest margin method (margin sampling).
 
 """
 import numpy as np
-import scipy as sc
+import scipy
+import math
 
 from libact.base.interfaces import QueryStrategy, ContinuousModel, \
     ProbabilisticModel
@@ -170,33 +171,64 @@ class UncertaintySampling(QueryStrategy):
                         #acumular para fazer media (cada feature)
                         for k in range(len(X_labeled[0])):
                             list_acum[j][k] += X_labeled[i][k]
-                print(list_acum)
-            print(list_acum)
             for i in range(len(list_acum)):
                 prot.append([x / counter_classes[i] for x in list_acum[i]])
             
             #interesse - METRICAS
             print("inst atual: " +str(X_pool[0]))
             print("prot 0: " +str(prot[0]))
-            corr = np.corrcoef(X_pool[0], prot[0])
-            print("corr: ")
-            print(corr)
             print("prot 1: " +str(prot[1]))
-            corr = np.corrcoef(X_pool[0], prot[1])
-            print("corr: ")
-            print(corr)
             
+            acum = []
+            #similarity for each isntance to be from an unknown class
+            sim_unknown_global =[]
+            interest_unknow_incertainty = []
+            #euclidean distance
+            for i in range(len(X_pool)):
+                for j in classes:
+                    #acum - distancias euclidianas
+                    acum.append(scipy.spatial.distance.euclidean(X_pool[i], prot[int(j)]))
+                #por agora deixar assim, falar com o stor depois!!!!
+            
+                #calcula semelhanca MUDAR (EXPERIMENTAR COM 1 - max(dvalue))
+                sim_unknown_global.append(sum(acum)-min(acum)) #0-1 MUDAR
+                print("sim: " + str(sim_unknown_global[i]))
 
-            # isto foi o broche do toni que adicionou
-            pearson,_ = sc.stats.pearsonr(X_pool[0], prot[1])
-            print("pearson: ")
-            print(pearson)
+                #calcula probabilidade
+                sim_unknown_global[i] = sim_unknown_global[i]/(sum(acum)+sim_unknown_global[i])
+                
+                #calcula interesses
+                #unknown = numpy.tanh(2*sim_unknown_global[i])
+                #uncertainty: -sum(p(new = pi)*log(p(new = pi))) (PORVAVEL MUDAR AQUI TAMBEM)
+                prob_classes = []
+                for j in range(len(classes)):
+                    prob_classes.append(float(acum[j]/(sum(acum)+sim_unknown_global[i])))
+                    #interesse uncertainty
+                    prob_classes[j] = prob_classes[j]*math.log(prob_classes[j])
 
-            #unlabeled_entry_ids, scores = zip(*self._get_scores())
-            #ask_id = np.argmax(scores)
+                interest_unknow_incertainty.append([np.tanh(2*sim_unknown_global[i]),  -(sum(prob_classes) + sim_unknown_global[i])])
+                acum = []
+                prob_classes = []
+                
+            #por agora deixar assim, falar com o stor depois!!!!
+            print("interest_unknow_incertainty[:][0] : ")
+            print(interest_unknow_incertainty[:][0])
+
+            interest_unknow_incertainty_array = np.asarray(interest_unknow_incertainty)
+            #k[0] for k in interest_unknow_incertainty
+            ask_id = np.unravel_index(np.argmax(interest_unknow_incertainty_array, axis=None), interest_unknow_incertainty_array.shape)
+            #ask_id = np.argmax(max(interest_unknow_incertainty[0] if max(interest_unknow_incertainty[0])>max(interest_unknow_incertainty[:][1]) else interest_unknow_incertainty[:][1]))
+            interest_unknow_incertainty = []
+            print("len array: "+str(unlabeled_entry_ids))
+            return unlabeled_entry_ids[ask_id[0]]
         else:
             unlabeled_entry_ids, scores = zip(*self._get_scores())
             ask_id = np.argmax(scores)
+            if return_score:
+                return unlabeled_entry_ids[ask_id], \
+                    list(zip(unlabeled_entry_ids, scores))
+            else:
+                return unlabeled_entry_ids[ask_id]
             
         
         ###########################################################################
@@ -204,8 +236,4 @@ class UncertaintySampling(QueryStrategy):
 #        unlabeled_entry_ids, scores = zip(*self._get_scores())
 #        ask_id = np.argmax(scores)
 
-        if return_score:
-            return unlabeled_entry_ids[ask_id], \
-                   list(zip(unlabeled_entry_ids, scores))
-        else:
-            return unlabeled_entry_ids[ask_id]
+        
