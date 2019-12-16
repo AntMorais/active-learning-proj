@@ -91,6 +91,13 @@ class UncertaintySampling(QueryStrategy):
                 "is: " + self.method
             )
 
+        self.metric = kwargs.pop('metric', 'Max')
+        if self.metric not in ['Max', 'Weight', 'Sum']:
+            raise TypeError(
+                "supported metrics are ['Max', 'Weight', 'Sum'], the given one "
+                "is: " + self.metric
+            )
+
         if self.method=='entropy' and \
                 not isinstance(self.model, ProbabilisticModel):
             raise TypeError(
@@ -139,88 +146,115 @@ class UncertaintySampling(QueryStrategy):
         """
         dataset = self.dataset
         
-        # unlabeled_entry_ids, _ = dataset.get_unlabeled_entries()
-        
         ############################################################################
+        #EUCLIDEANA + METRICAS DE INTERESSE
         if(self.method == 'euclidean'):
             self.model.train(dataset)
+
             #caso usemos a distancia euclidiana e metricas de interesse
             unlabeled_entry_ids, X_pool = dataset.get_unlabeled_entries()
             X_labeled, y_labeled = dataset.get_labeled_entries()
             
-            #prototipos (media)
+            #CALCULAR prototipos (media das features)
             classes = np.unique(dataset._y[dataset.get_labeled_mask()])
             #lista para acumular valores de cada feature
             list_acum = []
-            #list acumulador de isntancias de classes
+            #lista guarda numero de instancias de cada classe (dar return para poder usar no plot????)
             counter_classes = []
             for i in range(len(classes)):
                 counter_classes.append(0)
                 list_acum.append([0] * len(X_labeled[0]))
 
-            #lista que guarda medias das features de cada classe
+            #lista que guarda medias das features de cada classe (prototipos)
             prot = []
             acum = 0
 
-            #percorrer as instancias labeled e acumular os valores e dividir no fim
+            #percorrer as instancias labeled e acumular os valores (cada feature da mesma classe) e dividir no fim _> prototipos
             for i in range(len(X_labeled)):
-                for j in classes:
-                    if y_labeled[i] == j:
-                        counter_classes[int(j)] += 1
-                        j = int(j)
+                for j in range(len(classes)):
+                    if y_labeled[i] == classes[j]:
+                        counter_classes[j] += 1 #atualiza o numero de instancias
                         #acumular para fazer media (cada feature)
+                        #X_labeled[0] _> numero de features
                         for k in range(len(X_labeled[0])):
                             list_acum[j][k] += X_labeled[i][k]
+            
+            #guardar em prot os prototipos (medias das features)
             for i in range(len(list_acum)):
                 prot.append([x / counter_classes[i] for x in list_acum[i]])
             
             #interesse - METRICAS
-            print("inst atual: " +str(X_pool[0]))
-            print("prot 0: " +str(prot[0]))
-            print("prot 1: " +str(prot[1]))
-            
+            euclidean_dist = []
             acum = []
-            #similarity for each isntance to be from an unknown class
+            #similarity for each instance to be from an unknown class
             sim_unknown_global =[]
             interest_unknow_incertainty = []
             #euclidean distance
             for i in range(len(X_pool)):
-                for j in classes:
-                    #acum - distancias euclidianas
-                    acum.append(scipy.spatial.distance.euclidean(X_pool[i], prot[int(j)]))
-                #por agora deixar assim, falar com o stor depois!!!!
-            
-                #calcula semelhanca MUDAR (EXPERIMENTAR COM 1 - max(dvalue))
-                sim_unknown_global.append(sum(acum)-min(acum)) #0-1 MUDAR
-                print("sim: " + str(sim_unknown_global[i]))
-
-                #calcula probabilidade
-                sim_unknown_global[i] = sim_unknown_global[i]/(sum(acum)+sim_unknown_global[i])
-                
-                #calcula interesses
-                #unknown = numpy.tanh(2*sim_unknown_global[i])
-                #uncertainty: -sum(p(new = pi)*log(p(new = pi))) (PORVAVEL MUDAR AQUI TAMBEM)
-                prob_classes = []
                 for j in range(len(classes)):
-                    prob_classes.append(float(acum[j]/(sum(acum)+sim_unknown_global[i])))
-                    #interesse uncertainty
-                    prob_classes[j] = prob_classes[j]*math.log(prob_classes[j])
+                    #acum - distancias euclidianas entre features
+                    acum.append(abs(scipy.spatial.distance.euclidean(X_pool[i], prot[j])))
 
-                interest_unknow_incertainty.append([np.tanh(2*sim_unknown_global[i]),  -(sum(prob_classes) + sim_unknown_global[i])])
+                #calcula semelhanca 
+                #guarda distancia entre a nova e uma classe unknown ()
+                sim_unknown_global.append(abs(max(acum)-min(acum)))
+                
+                #calcula probabilidade
+                euclidean_dist.append(acum)
+                euclidean_dist_temp = sim_unknown_global[i]
+
+                #probabilidade de ser unknown (similarity)
+                #anteriormente -> sim_unknown_global[i] = euclidean_dist_temp/(sum(acum)+euclidean_dist_temp)
+                sim_unknown_global[i] = 1/(1+euclidean_dist_temp)
+
+                #calcula interesses
+                #unknown = np.tanh(2*sim_unknown_global[i])
+                #uncertainty: -sum(p(new = pi)*log(p(new = pi))) 
+                prob_classes = []
+                
+                #calcular semelhancas (sim)
+                for j in range(len(classes)):
+                    #anteriormente -> prob_classes.append(float(acum[j]/(sum(acum)+euclidean_dist_temp)))
+                    prob_classes.append(1/(1+acum[j]))
+                #adicionar probabilidade da classe desconhecida
+                prob_classes.append(sim_unknown_global[i])
+                #calcular probabilidades (normalizar)
+                soma_sim = sum(prob_classes)
+                for j in range(len(classes)):
+                    prob_classes[j] = prob_classes[j]/soma_sim
+
+                #interesse uncertainty (prob_classes[j]*math.log(prob_classes[j])
+                prob_classes = [prob_classes[j]*math.log(prob_classes[j]) for j in range(len(prob_classes))]
+                #interesse unknown e uncertainty
+                if(self.metric=='Max'):
+                    #MAX - mudar em baixo, nao esquecer
+                    interest_unknow_incertainty.append([np.tanh(2*sim_unknown_global[i]),  -(sum(prob_classes) + (sim_unknown_global[i]*math.log(sim_unknown_global[i])))])
+                if(self.metric=='Sum'):
+                    #SOMA - mudar em baixo, nao esquecer
+                    interest_unknow_incertainty.append(np.tanh(2*sim_unknown_global[i]) +  -(sum(prob_classes) + (sim_unknown_global[i]*math.log(sim_unknown_global[i]))))
+
+                if(self.metric=='Weight'):
+                    #WEIGHTED - mudar em baixo, nao esquecer
+                    interest_unknow_incertainty.append(np.tanh(2*sim_unknown_global[i])*15 +  -(sum(prob_classes) + (sim_unknown_global[i]*math.log(sim_unknown_global[i]))))
                 acum = []
                 prob_classes = []
-                
-            #por agora deixar assim, falar com o stor depois!!!!
-            print("interest_unknow_incertainty[:][0] : ")
-            print(interest_unknow_incertainty[:][0])
-
+    
             interest_unknow_incertainty_array = np.asarray(interest_unknow_incertainty)
-            #k[0] for k in interest_unknow_incertainty
-            ask_id = np.unravel_index(np.argmax(interest_unknow_incertainty_array, axis=None), interest_unknow_incertainty_array.shape)
-            #ask_id = np.argmax(max(interest_unknow_incertainty[0] if max(interest_unknow_incertainty[0])>max(interest_unknow_incertainty[:][1]) else interest_unknow_incertainty[:][1]))
-            interest_unknow_incertainty = []
-            print("len array: "+str(unlabeled_entry_ids))
-            return unlabeled_entry_ids[ask_id[0]]
+            
+            if(self.metric=='Max'):
+                ask_id = np.unravel_index(np.argmax(interest_unknow_incertainty_array, axis=None), interest_unknow_incertainty_array.shape)
+                #reset no array
+                interest_unknow_incertainty = []
+                
+                #caso seja SOMA ou WEIGHTED -> return unlabeled_entry_ids[ask_id]
+                return unlabeled_entry_ids[ask_id[0]]
+            else:
+                ask_id = np.unravel_index(np.argmax(interest_unknow_incertainty_array, axis=None), interest_unknow_incertainty_array.shape)
+                #reset no array
+                interest_unknow_incertainty = []
+                
+                #caso seja SOMA ou WEIGHTED -> return unlabeled_entry_ids[ask_id]
+                return unlabeled_entry_ids[ask_id]
         else:
             unlabeled_entry_ids, scores = zip(*self._get_scores())
             ask_id = np.argmax(scores)
@@ -232,8 +266,5 @@ class UncertaintySampling(QueryStrategy):
             
         
         ###########################################################################
-        
-#        unlabeled_entry_ids, scores = zip(*self._get_scores())
-#        ask_id = np.argmax(scores)
 
         
