@@ -41,8 +41,8 @@ as-well as the F1-Score and AUROC every time an instance is queried.
 Steps:
 - Copy the uncertaintysampling.py and replace on the libact directory (libact > query_strategies) and reinstall libact in order to update the makequery()
 function
-- run:
-  - python teste_plot.py interest_combination dataset_name n_samples
+- run: python teste_plot.py interest_combination dataset_name n_samples
+
 Parameters:
 - interest_combination - WeightN (weighed sum of metrics, N - value of
 weight to give to the interest of the unknown, ex. Weight10), Sum (sum of
