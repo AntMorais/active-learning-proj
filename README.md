@@ -29,7 +29,7 @@ of the performance of several querying metrics.
 - Dataset files in the project directory (abalonelibsvm.txt, satlibsvm.txt,
 irislibsvm.txt, winelibsvm.txt)
 - uncertaintysampling.py and teste_plot.py files
-- 
+
 The teste_plot.py plots the F1-Score value and AUROC (Area Under Receiver
 Operating Characteristics) by the number of queries of 3 querying strategies:
 Uncertainty, Random and Interest (combination of unknown and uncertainty).
@@ -39,8 +39,7 @@ since we are updating the classes prototypes, calculating distances, probabiliti
 as-well as the F1-Score and AUROC every time an instance is queried.
 
 Steps:
-- Copy the uncertaintysampling.py and replace on the libact directory (libact
-> query_strategies) and reinstall libact in order to update the makequery()
+- Copy the uncertaintysampling.py and replace on the libact directory (libact > query_strategies) and reinstall libact in order to update the makequery()
 function
 - run:
   - python teste_plot.py interest_combination dataset_name n_samples
